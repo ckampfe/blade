@@ -156,8 +156,8 @@ fn migrate_db(conn: Connection) -> anyhow::Result<Connection> {
         namespace text not null,
         key text not null,
         value blob not null,
-        inserted_at datetime not null default current_timestamp,
-        updated_at datetime not null default current_timestamp,
+        inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
+        updated_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
         primary key (namespace, key)
     );
 
@@ -288,6 +288,7 @@ fn main() -> anyhow::Result<()> {
                 value
             from entries
             where namespace = ?
+            order by inserted_at desc
             ",
             )?;
 
