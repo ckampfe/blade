@@ -1,5 +1,7 @@
 # blade
 
+A personal CLI key-value database. Shameless port of https://github.com/charmbracelet/skate
+
 ## Use
 
 ```
@@ -19,3 +21,7 @@ Options:
   -h, --help  Print help
 
 ```
+
+## Design
+
+A single, global SQLite database. This may change so that each namespace gets its own SQLite database, but maybe not.
