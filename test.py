@@ -167,7 +167,7 @@ class TestBlade(unittest.TestCase):
                 list_out.stdout,
                 "\n".join(
                     [
-                        "\t".join([key1.rstrip("@ns1"), value1]),
+                        "\t".join([key1.removesuffix("@ns1"), value1]),
                     ]
                 )
                 + "\n",
@@ -181,8 +181,8 @@ class TestBlade(unittest.TestCase):
                 list_out2.stdout,
                 "\n".join(
                     [
-                        "\t".join([key3.rstrip("@ns2"), value3]),
-                        "\t".join([key2.rstrip("@ns2"), value2]),
+                        "\t".join([key3.removesuffix("@ns2"), value3]),
+                        "\t".join([key2.removesuffix("@ns2"), value2]),
                     ]
                 )
                 + "\n",
