@@ -3,7 +3,6 @@ import string
 import subprocess
 import unittest
 from contextlib import contextmanager
-import time
 
 
 def run(args):
