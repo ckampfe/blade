@@ -36,6 +36,7 @@ enum Command {
 struct Config {
     db_location: PathBuf,
     sqlite_synchronous_mode: SqliteSynchronousMode,
+    sqlite_busy_timeout_ms: i32,
 }
 
 impl Default for Config {
@@ -51,6 +52,7 @@ impl Default for Config {
         Self {
             db_location,
             sqlite_synchronous_mode: SqliteSynchronousMode::default(),
+            sqlite_busy_timeout_ms: 5_000,
         }
     }
 }
@@ -79,12 +81,15 @@ impl Display for SqliteSynchronousMode {
 }
 
 fn get_or_create_config_file() -> anyhow::Result<Config> {
-    let mut config_path = directories::UserDirs::new()
-        .ok_or(anyhow!("could not retrieve home directory"))?
-        .home_dir()
-        .to_path_buf();
-    config_path.push(".config");
-    config_path.push("blade.db");
+    let mut config_path = {
+        let mut config_path = directories::UserDirs::new()
+            .ok_or(anyhow!("could not retrieve home directory"))?
+            .home_dir()
+            .to_path_buf();
+        config_path.push(".config");
+        config_path.push("blade");
+        config_path
+    };
 
     std::fs::create_dir_all(&config_path)?;
 
@@ -111,8 +116,9 @@ fn get_or_create_config_file() -> anyhow::Result<Config> {
 fn open_or_create_db(
     db_location: &Path,
     sqlite_synchronous_mode: SqliteSynchronousMode,
+    sqlite_busy_timeout_ms: i32,
 ) -> anyhow::Result<rusqlite::Connection> {
-    match open_db_connection(db_location, sqlite_synchronous_mode) {
+    match open_db_connection(db_location, sqlite_synchronous_mode, sqlite_busy_timeout_ms) {
         Ok(c) => Ok(c),
         Err(rusqlite::Error::SqliteFailure(
             rusqlite::ffi::Error {
@@ -123,7 +129,8 @@ fn open_or_create_db(
         )) => {
             let db_dir = db_location.parent().unwrap();
             std::fs::create_dir_all(db_dir)?;
-            let conn = open_db_connection(db_location, sqlite_synchronous_mode)?;
+            let conn =
+                open_db_connection(db_location, sqlite_synchronous_mode, sqlite_busy_timeout_ms)?;
             Ok(conn)
         }
         Err(e) => Err(e)?,
@@ -133,10 +140,12 @@ fn open_or_create_db(
 fn open_db_connection(
     path: &Path,
     sqlite_synchronous_mode: SqliteSynchronousMode,
+    sqlite_busy_timeout_ms: i32,
 ) -> rusqlite::Result<rusqlite::Connection> {
     let conn = rusqlite::Connection::open(path)?;
     conn.pragma_update(None, "journal_mode", "wal")?;
     conn.pragma_update(None, "synchronous", sqlite_synchronous_mode.to_string())?;
+    conn.pragma_update(None, "busy_timeout", sqlite_busy_timeout_ms)?;
     Ok(conn)
 }
 
@@ -188,7 +197,11 @@ fn main() -> anyhow::Result<()> {
 
     let config = get_or_create_config_file()?;
 
-    let conn = open_or_create_db(&config.db_location, config.sqlite_synchronous_mode)?;
+    let conn = open_or_create_db(
+        &config.db_location,
+        config.sqlite_synchronous_mode,
+        config.sqlite_busy_timeout_ms,
+    )?;
 
     let conn = migrate_db(conn)?;
 
