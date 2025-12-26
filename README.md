@@ -2,6 +2,8 @@
 
 A personal CLI key-value database. Shameless port of https://github.com/charmbracelet/skate
 
+[![Rust](https://github.com/ckampfe/blade/actions/workflows/rust.yml/badge.svg)](https://github.com/ckampfe/blade/actions/workflows/rust.yml)
+
 ## Use
 
 ```
