@@ -48,7 +48,7 @@ cargo install blade --git https://github.com/ckampfe/blade
 
 ```
 $ blade help
-Usage: blade <COMMAND>
+Usage: blade [DB_LOCATION] <COMMAND>
 
 Commands:
   get              Get a key. `key[@namespace]`
@@ -58,6 +58,9 @@ Commands:
   list-namespaces  List all namespaces
   dump-config      Print the current config
   help             Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [DB_LOCATION]  Optional. Setting this environment variable overrides the db location set in the config file. If not set, uses the location set in the config file: ~/.config/blade/config.toml [env: DB_LOCATION=]
 
 Options:
   -h, --help  Print help
