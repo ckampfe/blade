@@ -1,12 +1,16 @@
+import os
 import random
 import string
 import subprocess
+import tempfile
 import unittest
 from contextlib import contextmanager
 
 
-def run(args):
-    return subprocess.run(args, capture_output=True, text=True, check=True)
+def run(db, args):
+    my_env = os.environ.copy()
+    my_env["DB_LOCATION"] = db
+    return subprocess.run(args, capture_output=True, text=True, check=True, env=my_env)
 
 
 def generate_random_string(length):
@@ -16,24 +20,24 @@ def generate_random_string(length):
     return "".join(random.choices(characters, k=length))
 
 
-def get(key):
-    return run(["blade", "get", key])
+def get(db, key):
+    return run(db, ["blade", "get", key])
 
 
-def set(key, value):
-    return run(["blade", "set", key, value])
+def set(db, key, value):
+    return run(db, ["blade", "set", key, value])
 
 
-def delete(key):
-    return run(["blade", "delete", key])
+def delete(db, key):
+    return run(db, ["blade", "delete", key])
 
 
-def list():
-    return run(["blade", "list"])
+def list(db):
+    return run(db, ["blade", "list"])
 
 
-def list_with_namespace(ns):
-    return run(["blade", "list", ns])
+def list_with_namespace(db, ns):
+    return run(db, ["blade", "list", ns])
 
 
 @contextmanager
@@ -45,66 +49,66 @@ def random_kv(ns=None):
         k = k + "@" + ns
         ns = None
 
-    try:
-        yield k, v
-    finally:
-        delete(k)
+    yield k, v
+
+
+@contextmanager
+def test_db():
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        db = tmpdirname + "/test.db"
+        yield db
 
 
 class TestBlade(unittest.TestCase):
     def test_get_and_set(self):
-        with random_kv() as (key, value):
-            set_out = set(key, value)
+        with test_db() as db, random_kv() as (key, value):
+            set_out = set(db, key, value)
 
             self.assertEqual(set_out.returncode, 0)
 
-            get_out = get(key)
+            get_out = get(db, key)
 
             self.assertEqual(get_out.returncode, 0)
             self.assertEqual(get_out.stdout, value + "\n")
 
     def test_get_and_set_with_namespaces(self):
-        try:
+        with test_db() as db:
             key1 = "key@ns1"
             value1 = "value1"
 
             key2 = "key@ns2"
             value2 = "other value"
 
-            set_out1 = set(key1, value1)
+            set_out1 = set(db, key1, value1)
 
             self.assertEqual(set_out1.returncode, 0)
 
-            get_out1 = get(key1)
+            get_out1 = get(db, key1)
 
             self.assertEqual(get_out1.returncode, 0)
             self.assertEqual(get_out1.stdout, value1 + "\n")
 
-            set_out2 = set(key2, value2)
+            set_out2 = set(db, key2, value2)
 
             self.assertEqual(set_out2.returncode, 0)
 
-            get_out2 = get(key2)
+            get_out2 = get(db, key2)
 
             self.assertEqual(get_out2.returncode, 0)
             self.assertEqual(get_out2.stdout, value2 + "\n")
 
             self.assertNotEqual(get_out1.stdout, get_out2.stdout)
 
-        finally:
-            delete(key1)
-            delete(key2)
-
     def test_delete(self):
-        with random_kv() as (key, value):
-            set_out = set(key, value)
+        with test_db() as db, random_kv() as (key, value):
+            set_out = set(db, key, value)
             self.assertEqual(set_out.returncode, 0)
 
-            get_out = get(key)
+            get_out = get(db, key)
             self.assertEqual(get_out.returncode, 0)
             self.assertEqual(get_out.stdout, value + "\n")
 
-            delete_out = delete(key)
+            delete_out = delete(db, key)
             self.assertEqual(delete_out.returncode, 0)
             self.assertEqual(delete_out.returncode, 0)
             self.assertEqual(delete_out.stdout, "")
@@ -113,20 +117,21 @@ class TestBlade(unittest.TestCase):
         self.maxDiff = None
 
         with (
+            test_db() as db,
             random_kv() as (key1, value1),
             random_kv() as (key2, value2),
             random_kv() as (key3, value3),
         ):
-            set_out = set(key1, value1)
+            set_out = set(db, key1, value1)
             self.assertEqual(set_out.returncode, 0)
 
-            set_out2 = set(key2, value2)
+            set_out2 = set(db, key2, value2)
             self.assertEqual(set_out2.returncode, 0)
 
-            set_out3 = set(key3, value3)
+            set_out3 = set(db, key3, value3)
             self.assertEqual(set_out3.returncode, 0)
 
-            list_out = list()
+            list_out = list(db)
 
             self.assertEqual(list_out.returncode, 0)
 
@@ -146,20 +151,21 @@ class TestBlade(unittest.TestCase):
         self.maxDiff = None
 
         with (
+            test_db() as db,
             random_kv("ns1") as (key1, value1),
             random_kv("ns2") as (key2, value2),
             random_kv("ns2") as (key3, value3),
         ):
-            set_out = set(key1, value1)
+            set_out = set(db, key1, value1)
             self.assertEqual(set_out.returncode, 0)
 
-            set_out2 = set(key2, value2)
+            set_out2 = set(db, key2, value2)
             self.assertEqual(set_out2.returncode, 0)
 
-            set_out3 = set(key3, value3)
+            set_out3 = set(db, key3, value3)
             self.assertEqual(set_out3.returncode, 0)
 
-            list_out = list_with_namespace("ns1")
+            list_out = list_with_namespace(db, "ns1")
 
             self.assertEqual(list_out.returncode, 0)
 
@@ -173,7 +179,7 @@ class TestBlade(unittest.TestCase):
                 + "\n",
             )
 
-            list_out2 = list_with_namespace("ns2")
+            list_out2 = list_with_namespace(db, "ns2")
 
             self.assertEqual(list_out2.returncode, 0)
 

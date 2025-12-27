@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -9,6 +9,18 @@ use std::path::{Path, PathBuf};
 const DEFAULT_NAMESPACE: &str = "default";
 
 #[derive(Parser)]
+struct Options {
+    /// Optional. Setting this environment variable overrides
+    /// the db location set in the config file.
+    /// If not set, uses the location set in the config file:
+    /// ~/.config/blade/config.toml
+    #[arg(env)]
+    db_location: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand, Clone)]
 enum Command {
     /// Get a key. `key[@namespace]`
     Get { namespaced_key: String },
@@ -193,19 +205,19 @@ fn split_maybe_qualified_key(maybe_qualified_key: &str) -> anyhow::Result<Key<'_
 }
 
 fn main() -> anyhow::Result<()> {
-    let command = Command::parse();
+    let options = Options::parse();
 
     let config = get_or_create_config_file()?;
 
     let conn = open_or_create_db(
-        &config.db_location,
+        options.db_location.as_ref().unwrap_or(&config.db_location),
         config.sqlite_synchronous_mode,
         config.sqlite_busy_timeout_ms,
     )?;
 
     let conn = migrate_db(conn)?;
 
-    match command {
+    match options.command {
         Command::Get { namespaced_key } => {
             let key = split_maybe_qualified_key(&namespaced_key)?;
 
