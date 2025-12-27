@@ -159,7 +159,7 @@ fn migrate_db(conn: Connection) -> anyhow::Result<Connection> {
         inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
         updated_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
         primary key (namespace, key)
-    );
+    ) without rowid;
 
     create trigger if not exists entries_updated_at
     after update on entries for each row
