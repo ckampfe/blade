@@ -4,7 +4,47 @@ A personal CLI key-value database. Shameless port of https://github.com/charmbra
 
 [![Rust](https://github.com/ckampfe/blade/actions/workflows/rust.yml/badge.svg)](https://github.com/ckampfe/blade/actions/workflows/rust.yml)
 
-## Use
+## Examples
+
+```
+$ blade set a 1
+$ blade get a
+1
+$ blade set b 2
+$ blade list
+b	2
+a	1
+$ blade delete a
+$ blade list
+b	2
+```
+
+You can also use namespaces, which are entirely separate keyspaces:
+
+```bash
+$ blade set a@ns1 hi
+$ blade set a@ns2 bye
+$ blade get a@ns1
+hi
+$ blade get a@ns2
+bye
+$ blade list ns1
+a	hi
+$ blade list ns2
+a	bye
+$ blade list-namespaces
+default
+ns1
+ns2
+```
+
+## Install
+
+```
+cargo install blade --git https://github.com/ckampfe/blade
+```
+
+## API
 
 ```
 $ blade help
