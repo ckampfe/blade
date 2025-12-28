@@ -66,6 +66,10 @@ def list_with_namespace(db, ns):
     return run(db, ["blade", "list", ns])
 
 
+def dump_config(db):
+    return run(db, ["blade", "dump-config"])
+
+
 @contextmanager
 def random_kv(ns=None):
     k = generate_random_string(10)
@@ -249,6 +253,14 @@ class TestBlade(unittest.TestCase):
                 )
                 + "\n",
             )
+
+    def test_dump_config(self):
+        with test_db() as db:
+            dump_config_out = dump_config(db)
+            self.assertIn("db_location = ", dump_config_out.stdout)
+            self.assertIn("blade.db", dump_config_out.stdout)
+            self.assertIn('sqlite_synchronous_mode = "normal"', dump_config_out.stdout)
+            self.assertIn("sqlite_busy_timeout_ms = 5000", dump_config_out.stdout)
 
 
 if __name__ == "__main__":
