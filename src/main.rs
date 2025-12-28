@@ -25,7 +25,8 @@ enum Command {
     /// Get a key. `key[@namespace]`
     Get { namespaced_key: String },
     /// Set a key. `key[@namespace]`.
-    /// Value can be either a string, or a file read from stdin
+    /// Value can be either a string, or a file read from stdin,
+    /// like `blade set key < file.txt`
     Set {
         namespaced_key: String,
         value: Option<String>,
