@@ -3,6 +3,7 @@ import random
 import string
 import subprocess
 import tempfile
+import typing
 import unittest
 from contextlib import contextmanager
 
@@ -28,7 +29,7 @@ def set(db, key, value):
     return run(db, ["blade", "set", key, value])
 
 
-def set_from_stdin(db, key, value):
+def set_from_stdin_str(db, key, value: str):
     my_env = os.environ.copy()
     my_env["DB_LOCATION"] = db
     return subprocess.run(
@@ -41,7 +42,7 @@ def set_from_stdin(db, key, value):
     )
 
 
-def set_from_file_input(db, key, file):
+def set_from_file_redirection(db, key, file: int | typing.IO[typing.Any]):
     my_env = os.environ.copy()
     my_env["DB_LOCATION"] = db
     return subprocess.run(
@@ -103,7 +104,7 @@ class TestBlade(unittest.TestCase):
 
     def test_get_and_set_from_stdin(self):
         with test_db() as db, random_kv() as (key, value):
-            set_out = set_from_stdin(db, key, value)
+            set_out = set_from_stdin_str(db, key, value)
 
             self.assertEqual(set_out.returncode, 0)
 
@@ -122,7 +123,7 @@ class TestBlade(unittest.TestCase):
             file.write(bytes(file_contents, "utf-8"))
             file.seek(0)
 
-            set_out = set_from_file_input(db, key, file)
+            set_out = set_from_file_redirection(db, key, file)
 
             self.assertEqual(set_out.returncode, 0)
 
