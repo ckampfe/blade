@@ -92,3 +92,7 @@ This may change so that each namespace gets its own SQLite database, but maybe n
 The current approach benefits from being incredibly easy to understand, manage, and backup, at the expense of having a single global writer at a time. This really shouldn't be a problem as this model of KV interaction is not designed for "webscale" write throughput.
 
 Going to a database-per-namespace approach benefits from having `N` "physically separate" database files that do not block each other, at the expense of a proliferation of databases per namespace, making database management more annoying.
+
+## Credit
+
+This is not my idea! I stole it from https://github.com/charmbracelet/skate and wanted to try to implement my own version with some tweaks. Thanks to the Charm folks for the idea.
