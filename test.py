@@ -28,6 +28,32 @@ def set(db, key, value):
     return run(db, ["blade", "set", key, value])
 
 
+def set_from_stdin(db, key, value):
+    my_env = os.environ.copy()
+    my_env["DB_LOCATION"] = db
+    return subprocess.run(
+        ["blade", "set", key],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=my_env,
+        input=value,
+    )
+
+
+def set_from_file_input(db, key, file):
+    my_env = os.environ.copy()
+    my_env["DB_LOCATION"] = db
+    return subprocess.run(
+        ["blade", "set", key],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=my_env,
+        stdin=file,
+    )
+
+
 def delete(db, key):
     return run(db, ["blade", "delete", key])
 
@@ -70,6 +96,36 @@ class TestBlade(unittest.TestCase):
 
             self.assertEqual(get_out.returncode, 0)
             self.assertEqual(get_out.stdout, value + "\n")
+
+    def test_get_and_set_from_stdin(self):
+        with test_db() as db, random_kv() as (key, value):
+            set_out = set_from_stdin(db, key, value)
+
+            self.assertEqual(set_out.returncode, 0)
+
+            get_out = get(db, key)
+
+            self.assertEqual(get_out.returncode, 0)
+            self.assertEqual(get_out.stdout, value + "\n")
+
+    def test_get_and_set_from_stdin_fd(self):
+        with (
+            test_db() as db,
+            random_kv() as (key, value),
+            tempfile.NamedTemporaryFile() as file,
+        ):
+            file_contents = "hello world"
+            file.write(bytes(file_contents, "utf-8"))
+            file.seek(0)
+
+            set_out = set_from_file_input(db, key, file)
+
+            self.assertEqual(set_out.returncode, 0)
+
+            get_out = get(db, key)
+
+            self.assertEqual(get_out.returncode, 0)
+            self.assertEqual(get_out.stdout, file_contents + "\n")
 
     def test_get_and_set_with_namespaces(self):
         with test_db() as db:
