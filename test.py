@@ -11,7 +11,7 @@ from contextlib import contextmanager
 def run(db, args):
     my_env = os.environ.copy()
     my_env["DB_LOCATION"] = db
-    return subprocess.run(args, capture_output=True, text=True, check=True, env=my_env)
+    return subprocess.run(args, capture_output=True, text=True, env=my_env)
 
 
 def generate_random_string(length):
@@ -262,6 +262,26 @@ class TestBlade(unittest.TestCase):
             self.assertIn("blade.db", dump_config_out.stdout)
             self.assertIn('sqlite_synchronous_mode = "normal"', dump_config_out.stdout)
             self.assertIn("sqlite_busy_timeout_ms = 5000", dump_config_out.stdout)
+
+    def test_errors_if_key_is_empty(self):
+        with test_db() as db, random_kv() as (_key, value):
+            self.assertEqual(set(db, "", value).returncode, 1)
+            self.assertEqual(set(db, " ", value).returncode, 1)
+            self.assertEqual(set(db, "@namespace", value).returncode, 1)
+            self.assertEqual(set(db, "  @namespace", value).returncode, 1)
+
+            self.assertEqual(get(db, "").returncode, 1)
+            self.assertEqual(get(db, " ").returncode, 1)
+            self.assertEqual(get(db, "@namespace").returncode, 1)
+            self.assertEqual(get(db, "  @namespace").returncode, 1)
+
+    def test_errors_if_namespace_is_empty(self):
+        with test_db() as db, random_kv() as (_key, value):
+            self.assertEqual(set(db, "abc@", value).returncode, 1)
+            self.assertEqual(set(db, "abc@   ", value).returncode, 1)
+
+            self.assertEqual(get(db, "abc@").returncode, 1)
+            self.assertEqual(get(db, "abc@    ").returncode, 1)
 
 
 if __name__ == "__main__":

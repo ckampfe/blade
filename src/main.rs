@@ -193,6 +193,10 @@ struct Key<'input> {
 }
 
 fn split_maybe_qualified_key(maybe_qualified_key: &str) -> anyhow::Result<Key<'_>> {
+    if maybe_qualified_key.trim().is_empty() {
+        return Err(anyhow!("key cannot be empty"));
+    }
+
     let mut split = maybe_qualified_key.split("@");
 
     match (split.next(), split.next()) {
@@ -200,7 +204,15 @@ fn split_maybe_qualified_key(maybe_qualified_key: &str) -> anyhow::Result<Key<'_
             namespace: DEFAULT_NAMESPACE,
             name,
         }),
-        (Some(name), Some(namespace)) => Ok(Key { namespace, name }),
+        (Some(name), Some(namespace)) => {
+            if name.trim().is_empty() {
+                Err(anyhow!("key cannot be empty"))
+            } else if namespace.trim().is_empty() {
+                Err(anyhow!("namespace cannot be empty"))
+            } else {
+                Ok(Key { namespace, name })
+            }
+        }
         _ => unreachable!(),
     }
 }
