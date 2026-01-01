@@ -159,6 +159,10 @@ fn open_db_connection(
     conn.pragma_update(None, "journal_mode", "wal")?;
     conn.pragma_update(None, "synchronous", sqlite_synchronous_mode.to_string())?;
     conn.pragma_update(None, "busy_timeout", sqlite_busy_timeout_ms)?;
+
+    #[cfg(target_os = "macos")]
+    conn.pragma_update(None, "fullfsync", true)?;
+
     Ok(conn)
 }
 
