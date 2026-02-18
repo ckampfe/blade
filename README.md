@@ -1,6 +1,7 @@
 # blade
 
-A system-wide key-value database for use in scripts. Shameless port of https://github.com/charmbracelet/skate
+A system-wide key-value database for use in scripts. Shameless port of
+https://github.com/charmbracelet/skate
 
 [![Rust](https://github.com/ckampfe/blade/actions/workflows/rust.yml/badge.svg)](https://github.com/ckampfe/blade/actions/workflows/rust.yml)
 
@@ -64,12 +65,13 @@ Arguments:
 
 Options:
   -h, --help  Print help
-
 ```
 
 ## Configuration
 
-A configuration file will be created at `~/.config/blade/config.toml`. On my Mac it looks like this, but the `db_location` will vary on Linux and Windows based on the XDG spec.
+A configuration file will be created at `~/.config/blade/config.toml`. On my Mac
+it looks like this, but the `db_location` will vary on Linux and Windows based
+on the XDG spec.
 
 ```
 db_location = "/Users/clark/Library/Application Support/blade/blade.db"
@@ -77,22 +79,47 @@ sqlite_synchronous_mode = "normal"
 sqlite_busy_timeout_ms = 5000
 ```
 
-If you want system crash/power failure durability, change `sqlite_synchronous_mode` to `"full"`.
+If you want system crash/power failure durability, change
+`sqlite_synchronous_mode` to `"full"`.
 
-The `db_location` configuration setting can be overriden by setting the `DB_LOCATION` environment variable when calling `blade`. This is useful if you want to create a special one-off database or test something out, but the config file `db_location` is used by default because `blade` is intended to be global.
+The `db_location` configuration setting can be overriden by setting the
+`DB_LOCATION` environment variable when calling `blade`. This is useful if you
+want to create a special one-off database or test something out, but the config
+file `db_location` is used by default because `blade` is intended to be global.
+
+## Tests
+
+To run the tests:
+
+```
+$ uv run test.py
+```
+
+The only tests are the Python integration tests, there are no Rust tests.
 
 ## Design
 
-All key/values live in a namespace. There can be an arbitrary number of namespaces, and keys are unique per namespace.
-If no namespace is provided, this namespace is `default`. All of the commands work on the `default` namespace by default.
+All key/values live in a namespace. There can be an arbitrary number of
+namespaces, and keys are unique per namespace. If no namespace is provided, this
+namespace is `default`. All of the commands work on the `default` namespace by
+default.
 
-Right now, all namespaces live in a single table in a single global SQLite database.
-This may change so that each namespace gets its own SQLite database, but maybe not.
+Right now, all namespaces live in a single table in a single global SQLite
+database. This may change so that each namespace gets its own SQLite database,
+but maybe not.
 
-The current approach benefits from being incredibly easy to understand, manage, and backup, at the expense of having a single global writer at a time. This really shouldn't be a problem as this model of KV interaction is not designed for "webscale" write throughput.
+The current approach benefits from being incredibly easy to understand, manage,
+and backup, at the expense of having a single global writer at a time. This
+really shouldn't be a problem as this model of KV interaction is not designed
+for "webscale" write throughput.
 
-Going to a database-per-namespace approach benefits from having `N` "physically separate" database files that do not block each other, at the expense of a proliferation of databases per namespace, making database management more annoying.
+Going to a database-per-namespace approach benefits from having `N` "physically
+separate" database files that do not block each other, at the expense of a
+proliferation of databases per namespace, making database management more
+annoying.
 
 ## Credit
 
-This is not my idea! I stole it from https://github.com/charmbracelet/skate and wanted to try to implement my own version with some tweaks. Thanks to the Charm folks for the idea.
+This is not my idea! I stole it from https://github.com/charmbracelet/skate and
+wanted to try to implement my own version with some tweaks. Thanks to the Charm
+folks for the idea.
