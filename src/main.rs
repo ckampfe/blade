@@ -167,26 +167,17 @@ fn open_db_connection(
 }
 
 fn migrate_db(conn: Connection) -> anyhow::Result<Connection> {
-    conn.execute_batch(
+    conn.execute(
         "
     create table if not exists entries (
         namespace text not null,
         key text not null,
         value blob not null,
         inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
-        updated_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
         primary key (namespace, key)
     ) without rowid;
-
-    create trigger if not exists entries_updated_at
-    after update on entries for each row
-    begin
-        update entries
-        set updated_at = current_timestamp
-        where namespace = old.namespace
-        and key = old.key;
-    end;
     ",
+        [],
     )?;
     Ok(conn)
 }
@@ -274,7 +265,9 @@ fn main() -> anyhow::Result<()> {
                     insert into entries (namespace, key, value)
                     values (?, ?, ?)
                     on conflict do update
-                    set value = excluded.value
+                    set
+                        value = excluded.value,
+                        inserted_at = strftime('%Y-%m-%d %H:%M:%f', 'NOW')
                     where namespace = excluded.namespace
                     and key = excluded.key;
                     ";
