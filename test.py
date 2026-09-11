@@ -11,7 +11,7 @@ from contextlib import contextmanager
 def run(db, args):
     my_env = os.environ.copy()
     my_env["DB_LOCATION"] = db
-    return subprocess.run(args, capture_output=True, text=True, env=my_env)
+    return subprocess.run(args, check=False, capture_output=True, text=True, env=my_env)
 
 
 def generate_random_string(length):
@@ -116,7 +116,7 @@ class TestBlade(unittest.TestCase):
     def test_get_and_set_from_stdin_fd(self):
         with (
             test_db() as db,
-            random_kv() as (key, value),
+            random_kv() as (key, _value),
             tempfile.NamedTemporaryFile() as file,
         ):
             file_contents = "hello world"
@@ -198,13 +198,11 @@ class TestBlade(unittest.TestCase):
 
             self.assertEqual(
                 list_out.stdout,
-                "\n".join(
-                    [
-                        "\t".join([key3, value3]),
-                        "\t".join([key2, value2]),
-                        "\t".join([key1, value1]),
-                    ]
-                )
+                "\n".join([
+                    f"{key3}\t{value3}",
+                    f"{key2}\t{value2}",
+                    f"{key1}\t{value1}",
+                ])
                 + "\n",
             )
 
@@ -232,11 +230,9 @@ class TestBlade(unittest.TestCase):
 
             self.assertEqual(
                 list_out.stdout,
-                "\n".join(
-                    [
-                        "\t".join([key1.removesuffix("@ns1"), value1]),
-                    ]
-                )
+                "\n".join([
+                    "\t".join([key1.removesuffix("@ns1"), value1]),
+                ])
                 + "\n",
             )
 
@@ -246,12 +242,10 @@ class TestBlade(unittest.TestCase):
 
             self.assertEqual(
                 list_out2.stdout,
-                "\n".join(
-                    [
-                        "\t".join([key3.removesuffix("@ns2"), value3]),
-                        "\t".join([key2.removesuffix("@ns2"), value2]),
-                    ]
-                )
+                "\n".join([
+                    "\t".join([key3.removesuffix("@ns2"), value3]),
+                    "\t".join([key2.removesuffix("@ns2"), value2]),
+                ])
                 + "\n",
             )
 
