@@ -41,6 +41,8 @@ enum Command {
     },
     /// List all namespaces
     ListNamespaces,
+    /// Delete namespace and all its keys
+    DeleteNamespace { namespace: String },
     /// Print the current config
     DumpConfig,
 }
@@ -407,6 +409,9 @@ fn main() -> anyhow::Result<()> {
                 let row: String = row?;
                 writeln!(out, "{}", row)?;
             }
+        }
+        Command::DeleteNamespace { namespace } => {
+            conn.execute("delete from namespaces where namespace = ?", [namespace])?;
         }
         Command::DumpConfig => {
             let s = toml::to_string_pretty(&config)?;

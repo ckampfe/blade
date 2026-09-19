@@ -71,6 +71,10 @@ def list_namespaces(db):
     return run(db, ["blade", "list-namespaces"])
 
 
+def delete_namespace(db, ns):
+    return run(db, ["blade", "delete-namespace", ns])
+
+
 def dump_config(db):
     return run(db, ["blade", "dump-config"])
 
@@ -284,6 +288,52 @@ class TestBlade(unittest.TestCase):
             list_namespaces_out = list_namespaces(db)
             self.assertEqual(list_namespaces_out.returncode, 0)
             self.assertEqual(list_namespaces_out.stdout, "")
+
+    def test_delete_namespace_deletes_the_namespace_and_all_of_its_keys(self):
+        with (
+            test_db() as db,
+            random_kv("ns1") as (key1, value1),
+            random_kv("ns1") as (key2, value2),
+            random_kv("ns2") as (key3, value3),
+        ):
+            for key, value in [(key1, value1), (key2, value2), (key3, value3)]:
+                set_out = set(db, key, value)
+                self.assertEqual(set_out.returncode, 0)
+
+            list_namespaces_out = list_namespaces(db)
+            self.assertEqual(list_namespaces_out.returncode, 0)
+            self.assertEqual(list_namespaces_out.stdout, "ns1\nns2\n")
+
+            delete_namespace_out = delete_namespace(db, "ns1")
+            self.assertEqual(delete_namespace_out.returncode, 0)
+            self.assertEqual(delete_namespace_out.stdout, "")
+
+            # the namespace is gone
+            list_namespaces_out = list_namespaces(db)
+            self.assertEqual(list_namespaces_out.returncode, 0)
+            self.assertEqual(list_namespaces_out.stdout, "ns2\n")
+
+            # and so are all of its keys
+            for key in [key1, key2]:
+                get_out = get(db, key)
+                self.assertEqual(get_out.returncode, 0)
+                self.assertEqual(get_out.stdout, "")
+
+            list_out = list_with_namespace(db, "ns1")
+            self.assertEqual(list_out.returncode, 0)
+            self.assertEqual(list_out.stdout, "")
+
+            # the other namespace is untouched
+            get_out = get(db, key3)
+            self.assertEqual(get_out.returncode, 0)
+            self.assertEqual(get_out.stdout, value3 + "\n")
+
+            list_out = list_with_namespace(db, "ns2")
+            self.assertEqual(list_out.returncode, 0)
+            self.assertEqual(
+                list_out.stdout,
+                "\t".join([key3.removesuffix("@ns2"), value3]) + "\n",
+            )
 
     def test_dump_config(self):
         with test_db() as db:
