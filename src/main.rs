@@ -159,6 +159,7 @@ fn open_db_connection(
     conn.pragma_update(None, "journal_mode", "wal")?;
     conn.pragma_update(None, "synchronous", sqlite_synchronous_mode.to_string())?;
     conn.pragma_update(None, "busy_timeout", sqlite_busy_timeout_ms)?;
+    conn.pragma_update(None, "foreign_keys", true)?;
 
     #[cfg(target_os = "macos")]
     conn.pragma_update(None, "fullfsync", true)?;
@@ -167,17 +168,40 @@ fn open_db_connection(
 }
 
 fn migrate_db(conn: Connection) -> anyhow::Result<Connection> {
-    conn.execute(
+    conn.execute_batch(
         "
-    create table if not exists entries (
-        namespace text not null,
-        key text not null,
-        value blob not null,
-        inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
-        primary key (namespace, key)
-    ) without rowid;
+        begin;
+
+        create table if not exists namespaces (
+            id integer primary key,
+            namespace text not null,
+            inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW'))
+        );
+
+        create unique index if not exists idx_namespaces_namespace on namespaces (namespace);
+
+        create table if not exists entries (
+            namespace_id integer not null,
+            key text not null,
+            value blob not null,
+            inserted_at datetime not null default(strftime('%Y-%m-%d %H:%M:%f', 'NOW')),
+            primary key (namespace_id, key),
+
+            foreign key (namespace_id) references namespaces(id) on delete cascade
+        ) without rowid;
+
+        create index if not exists idx_entries_namespace_id on entries (namespace_id);
+
+        create trigger if not exists delete_empty_namespace
+        after delete on entries
+        for each row
+        when not exists (select 1 from entries where namespace_id = old.namespace_id)
+        begin
+            delete from namespaces where id = old.namespace_id and namespace <> 'default';
+        end;
+
+        commit;
     ",
-        [],
     )?;
     Ok(conn)
 }
@@ -223,7 +247,7 @@ fn main() -> anyhow::Result<()> {
         config.sqlite_busy_timeout_ms,
     )?;
 
-    let conn = migrate_db(conn)?;
+    let mut conn = migrate_db(conn)?;
 
     match options.command {
         Command::Get { namespaced_key } => {
@@ -234,6 +258,8 @@ fn main() -> anyhow::Result<()> {
             select
                 value
             from entries
+            inner join namespaces
+                on namespaces.id = entries.namespace_id
             where namespace = ?
             and key = ?
             limit 1
@@ -262,40 +288,66 @@ fn main() -> anyhow::Result<()> {
             let key = split_maybe_qualified_key(&namespaced_key)?;
 
             const SET_QUERY: &str = "
-                    insert into entries (namespace, key, value)
-                    values (?, ?, ?)
+            insert into entries (namespace_id, key, value)
+            values (?, ?, ?)
+            on conflict do update
+            set
+                value = excluded.value,
+                inserted_at = strftime('%Y-%m-%d %H:%M:%f', 'NOW')
+            where namespace_id = excluded.namespace_id
+            and key = excluded.key;
+            ";
+
+            let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+            let namespace_id: i64 = {
+                let mut namespace_q = tx.prepare(
+                    "insert into namespaces (namespace) values (?)
                     on conflict do update
-                    set
-                        value = excluded.value,
-                        inserted_at = strftime('%Y-%m-%d %H:%M:%f', 'NOW')
-                    where namespace = excluded.namespace
-                    and key = excluded.key;
-                    ";
+                        set namespace = excluded.namespace
+                    returning id",
+                )?;
+
+                namespace_q.query_one([key.namespace], |row| row.get(0))?
+            };
 
             if let Some(value) = value {
-                conn.execute(
-                    SET_QUERY,
-                    params![key.namespace, key.name, value.as_bytes()],
-                )?;
+                tx.execute(SET_QUERY, params![namespace_id, key.name, value.as_bytes()])?;
             } else {
                 let mut value = vec![];
 
                 std::io::stdin().read_to_end(&mut value)?;
 
-                conn.execute(SET_QUERY, params![key.namespace, key.name, value])?;
+                tx.execute(SET_QUERY, params![namespace_id, key.name, value])?;
             }
+
+            tx.commit()?;
         }
         Command::Delete { namespaced_key } => {
             let key = split_maybe_qualified_key(&namespaced_key)?;
 
-            conn.execute(
-                "
-                delete from entries
-                where namespace = ?
-                and key = ?
-            ",
-                [key.namespace, key.name],
-            )?;
+            let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+            let namespace_id: Option<i64> = tx
+                .query_one(
+                    "select id from namespaces where namespace = ?",
+                    [key.namespace],
+                    |row| row.get(0),
+                )
+                .optional()?;
+
+            if let Some(namespace_id) = namespace_id {
+                tx.execute(
+                    "
+                    delete from entries
+                    where namespace_id = ?
+                    and key = ?
+                    ",
+                    params![namespace_id, key.name],
+                )?;
+            }
+
+            tx.commit()?;
         }
         Command::List {
             namespace,
@@ -305,13 +357,15 @@ fn main() -> anyhow::Result<()> {
 
             let mut q = conn.prepare(
                 "
-            select
-                key,
-                value
-            from entries
-            where namespace = ?
-            order by inserted_at desc
-            ",
+                select
+                    key,
+                    value
+                from entries
+                inner join namespaces
+                    on namespaces.id = entries.namespace_id
+                where namespace = ?
+                order by entries.inserted_at desc
+                ",
             )?;
 
             let rows = q.query_map([namespace], |row| Ok((row.get(0)?, row.get(1)?)))?;
@@ -339,8 +393,8 @@ fn main() -> anyhow::Result<()> {
             let mut q = conn.prepare(
                 "
             select
-                distinct namespace
-            from entries
+                namespace
+            from namespaces
             order by namespace asc
             ",
             )?;
